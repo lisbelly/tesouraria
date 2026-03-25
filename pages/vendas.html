@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Vendas — Tesouraria UFADS</title> <link rel="stylesheet" href="../css/style.css">
+</head>
+<body> <script>const CURRENT_PAGE = 'vendas';</script>
+<script src="../js/core.js"></script>
+<script src="../js/_layout.js"></script> <div class="app-wrapper"> <div class="main-content"> <header class="topbar"> <div style="display:flex; align-items:center; gap:12px;"> <button class="sidebar-toggle" onclick="toggleSidebar()"></button> <span class="topbar-title">Vendas e Arrecadações</span> </div> <div class="topbar-actions"> <button class="btn btn-primary btn-sm" onclick="abrirModalNovo()">+ Nova Venda</button> </div> </header> <main class="content-area"> <div class="page-title"> Vendas e Arrecadações</div> <p class="page-subtitle">Registre vendas de produtos do departamento</p> <!-- Stats --> <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px;" id="venda-stats"></div> <!-- Filtros --> <div class="filter-bar"> <select class="form-select" id="filtro-produto" onchange="renderVendas()" style="width:auto;"> <option value="">Todos os produtos</option> <option value="Pamonha">Pamonha</option> <option value="Pão">Pão</option> <option value="Bolo">Bolo</option> <option value="Refrigerante">Refrigerante</option> <option value="Outro">Outro</option> </select> <select class="form-select" id="filtro-forma" onchange="renderVendas()" style="width:auto;"> <option value="">Todas as formas</option> <option value="PIX">PIX</option> <option value="Dinheiro">Dinheiro</option> </select> </div> <div class="card"> <div class="table-wrapper" style="border:none;"> <table id="tabela-vendas"> <thead> <tr> <th>Data</th> <th>Produto</th> <th>Qtd</th> <th>Valor Unitário</th> <th>Total</th> <th>Forma</th> <th>Ações</th> </tr> </thead> <tbody></tbody> </table> </div> </div> </main> </div>
+</div> <!-- MODAL -->
+<div class="modal-overlay" id="modal-venda" onclick="if(event.target.id==='modal-venda') closeModal('modal-venda')"> <div class="modal-box"> <div class="modal-head"> <h4 id="modal-venda-title">Nova Venda</h4> <button class="btn btn-ghost btn-icon" onclick="closeModal('modal-venda')"></button> </div> <div class="modal-body"> <input type="hidden" id="edit-id-venda"> <div class="form-row"> <div class="form-group"> <label class="form-label">Data <span class="required">*</span></label> <input type="date" id="data-venda" class="form-control"> </div> <div class="form-group"> <label class="form-label">Produto <span class="required">*</span></label> <select id="produto-venda" class="form-select"> <option value="Pamonha">Pamonha</option> <option value="Pão">Pão</option> <option value="Bolo">Bolo</option> <option value="Refrigerante">Refrigerante</option> <option value="Outro">Outro item</option> </select> </div> </div> <div class="form-row"> <div class="form-group"> <label class="form-label">Quantidade <span class="required">*</span></label> <input type="number" id="qtd-venda" class="form-control" value="1" min="1" oninput="calcularTotal()"> </div> <div class="form-group"> <label class="form-label">Valor Unitário (R$) <span class="required">*</span></label> <input type="number" id="unit-venda" class="form-control" step="0.01" value="8" min="0" oninput="calcularTotal()"> </div> </div> <div class="form-group"> <label class="form-label">Total Arrecadado (R$)</label> <input type="text" id="total-venda" class="form-control" readonly style="background:var(--neutral-50); font-weight:600;"> </div> <div class="form-group"> <label class="form-label">Forma de Recebimento <span class="required">*</span></label> <select id="forma-venda" class="form-select"> <option value="PIX"> PIX</option> <option value="Dinheiro"> Dinheiro</option> </select> </div> </div> <div class="modal-foot"> <button class="btn btn-outline" onclick="closeModal('modal-venda')">Cancelar</button> <button class="btn btn-primary" onclick="salvarVenda()">Registrar Venda</button> </div> </div>
+</div> <script>
+requireAuth();
+loadData();
+
+function calcularTotal() {
+  const qtd  = parseFloat(document.getElementById('qtd-venda').value) || 0;
+  const unit = parseFloat(document.getElementById('unit-venda').value) || 0;
+  document.getElementById('total-venda').value = fmt(qtd * unit);
+}
+
+function abrirModalNovo() {
+  document.getElementById('edit-id-venda').value = '';
+  document.getElementById('modal-venda-title').textContent = 'Nova Venda';
+  document.getElementById('data-venda').value = new Date().toISOString().split('T')[0];
+  document.getElementById('qtd-venda').value = 1;
+  document.getElementById('unit-venda').value = 8;
+  document.getElementById('produto-venda').value = 'Pamonha';
+  calcularTotal();
+  openModal('modal-venda');
+}
+
+function salvarVenda() {
+  const id    = document.getElementById('edit-id-venda').value;
+  const date  = document.getElementById('data-venda').value;
+  const prod  = document.getElementById('produto-venda').value;
+  const qtd   = parseFloat(document.getElementById('qtd-venda').value);
+  const unit  = parseFloat(document.getElementById('unit-venda').value);
+  const forma = document.getElementById('forma-venda').value;
+
+  if (!date || !prod || !qtd || !unit) { showToast('Preencha todos os campos!', 'error'); return; }
+
+  const total = qtd * unit;
+  const venda = { id: id ? +id : genId(), date, product: prod, qty: qtd, unitValue: unit, total, form: forma };
+
+  if (id) {
+    const idx = appData.sales.findIndex(s => s.id === +id);
+    if (idx > -1) appData.sales[idx] = venda;
+  } else {
+    appData.sales.unshift(venda);
+  }
+
+  saveData();
+  closeModal('modal-venda');
+  renderVendas();
+  renderStats();
+  showToast(id ? 'Venda atualizada!' : 'Venda registrada!');
+}
+
+function editarVenda(id) {
+  const v = appData.sales.find(s => s.id === id);
+  if (!v) return;
+  document.getElementById('edit-id-venda').value    = v.id;
+  document.getElementById('modal-venda-title').textContent = 'Editar Venda';
+  document.getElementById('data-venda').value       = v.date;
+  document.getElementById('produto-venda').value    = v.product;
+  document.getElementById('qtd-venda').value        = v.qty;
+  document.getElementById('unit-venda').value       = v.unitValue;
+  document.getElementById('forma-venda').value      = v.form;
+  calcularTotal();
+  openModal('modal-venda');
+}
+
+function excluirVenda(id) {
+  if (!confirm('Excluir esta venda?')) return;
+  appData.sales = appData.sales.filter(s => s.id !== id);
+  saveData();
+  renderVendas();
+  renderStats();
+  showToast('Venda removida.', 'warning');
+}
+
+function renderStats() {
+  let totalGeral = 0, totalPIX = 0, totalDinheiro = 0, qtdTotal = 0;
+  const filtProd = document.getElementById('filtro-produto').value;
+
+  appData.sales.forEach(s => {
+    const match = !filtProd || s.product === filtProd;
+    if (match) {
+      totalGeral    += +s.total;
+      qtdTotal      += +s.qty;
+      if (s.form === 'PIX') totalPIX += +s.total;
+      else totalDinheiro += +s.total;
+    }
+  });
+
+  document.getElementById('venda-stats').innerHTML = [
+    { label: 'Total Arrecadado', value: fmt(totalGeral),   cls: 'success', icon: '' },
+    { label: 'Via PIX',          value: fmt(totalPIX),     cls: 'primary', icon: '' },
+    { label: 'Dinheiro',         value: fmt(totalDinheiro),cls: 'warning', icon: '' },
+    { label: 'Itens Vendidos',   value: qtdTotal,           cls: 'accent',  icon: '' },
+  ].map(s => `
+    <div class="stat-card ${s.cls}"> <div class="stat-icon ${s.cls}">${s.icon}</div> <div class="stat-value">${s.value}</div> <div class="stat-label">${s.label}</div> </div>
+  `).join('');
+}
+
+function renderVendas() {
+  const filtProd = document.getElementById('filtro-produto').value;
+  const filtForma = document.getElementById('filtro-forma').value;
+
+  let lista = [...appData.sales];
+  if (filtProd)  lista = lista.filter(s => s.product === filtProd);
+  if (filtForma) lista = lista.filter(s => s.form === filtForma);
+  lista.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  const tbody = document.querySelector('#tabela-vendas tbody');
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>Nenhuma venda encontrada.</p></div></td></tr>`;
+    renderStats();
+    return;
+  }
+
+  tbody.innerHTML = lista.map(v => `
+    <tr> <td>${fmtDate(v.date)}</td> <td><span class="badge badge-primary">${v.product}</span></td> <td>${v.qty}</td> <td>${fmt(v.unitValue)}</td> <td style="font-weight:600; color:var(--success)">${fmt(v.total)}</td> <td>${v.form}</td> <td> <div class="table-actions"> <button class="btn btn-sm btn-outline" onclick="editarVenda(${v.id})" title="Editar"></button> <button class="btn btn-sm btn-danger"  onclick="excluirVenda(${v.id})" title="Excluir"></button> </div> </td> </tr>
+  `).join('');
+  renderStats();
+}
+
+renderStats();
+renderVendas();
+</script>
+</body>
+</html>

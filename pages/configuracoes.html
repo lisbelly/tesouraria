@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Configurações — Tesouraria UFADS</title> <link rel="stylesheet" href="../css/style.css"> <style>
+    .settings-section { margin-bottom: 32px; }
+    .settings-card { max-width: 680px; }
+    .danger-zone {
+      border: 1.5px solid var(--danger);
+      border-radius: var(--radius);
+      padding: 20px;
+      background: #fff5f5;
+    }
+    .danger-zone h5 { color: var(--danger); margin-bottom: 8px; }
+    .backup-area {
+      font-family: monospace;
+      font-size: .78rem;
+      background: var(--neutral-900);
+      color: #4ade80;
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      max-height: 180px;
+      overflow-y: auto;
+      word-break: break-all;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body> <script>const CURRENT_PAGE = 'configuracoes';</script>
+<script src="../js/core.js"></script>
+<script src="../js/_layout.js"></script> <div class="app-wrapper"> <div class="main-content"> <header class="topbar"> <div style="display:flex; align-items:center; gap:12px;"> <button class="sidebar-toggle" onclick="toggleSidebar()"></button> <span class="topbar-title">Configurações</span> </div> </header> <main class="content-area"> <div class="page-title"> Configurações</div> <p class="page-subtitle">Backup, restauração e preferências do sistema</p> <!-- INFORMAÇÕES DO SISTEMA --> <div class="settings-section"> <div class="section-title">Informações do Sistema</div> <div class="card settings-card"> <div class="card-body"> <div style="display:flex; flex-direction:column; gap:12px;" id="info-sistema"></div> </div> </div> </div> <!-- BACKUP --> <div class="settings-section"> <div class="section-title">Backup dos Dados</div> <div class="card settings-card"> <div class="card-header"><h5> Exportar Backup</h5></div> <div class="card-body"> <p style="font-size:.875rem; color:var(--neutral-600); margin-bottom:16px;">
+              Exporte todos os dados do sistema como arquivo JSON. Guarde em local seguro.
+            </p> <div id="backup-preview" class="backup-area" style="margin-bottom:16px;">
+              Clique em "Gerar Preview" para visualizar os dados...
+            </div> <div style="display:flex; gap:10px; flex-wrap:wrap;"> <button class="btn btn-outline" onclick="previewBackup()"> Gerar Preview</button> <button class="btn btn-primary"  onclick="exportarBackup()"> Baixar Backup (.json)</button> </div> </div> </div> </div> <!-- RESTAURAR --> <div class="settings-section"> <div class="section-title">Restaurar Dados</div> <div class="card settings-card"> <div class="card-header"><h5> Importar Backup</h5></div> <div class="card-body"> <p style="font-size:.875rem; color:var(--neutral-600); margin-bottom:16px;">
+               Restaurar um backup <strong>substituirá todos os dados atuais</strong>. 
+              Faça um backup antes de restaurar.
+            </p> <div class="form-group"> <label class="form-label">Selecione o arquivo de backup (.json)</label> <input type="file" id="arquivo-backup" class="form-control" accept=".json"> </div> <button class="btn btn-warning" onclick="importarBackup()"> Restaurar Backup</button> </div> </div> </div> <!-- ALTERAR SENHA --> <div class="settings-section"> <div class="section-title">Segurança</div> <div class="card settings-card"> <div class="card-header"><h5> Alterar Senha</h5></div> <div class="card-body"> <p class="text-muted text-sm" style="margin-bottom:16px;">
+              As credenciais ficam salvas localmente. Em produção, use autenticação segura no servidor.
+            </p> <div class="form-row"> <div class="form-group"> <label class="form-label">Nova Senha</label> <input type="password" id="nova-senha" class="form-control" placeholder="••••••"> </div> <div class="form-group"> <label class="form-label">Confirmar Senha</label> <input type="password" id="confirmar-senha" class="form-control" placeholder="••••••"> </div> </div> <button class="btn btn-primary" onclick="alterarSenha()">Salvar Nova Senha</button> </div> </div> </div> <!-- ZONA DE PERIGO --> <div class="settings-section"> <div class="section-title">Zona de Perigo</div> <div class="danger-zone settings-card"> <h5> Apagar Todos os Dados</h5> <p style="font-size:.875rem; color:#7f1d1d; margin-bottom:16px;">
+            Esta ação remove <strong>permanentemente</strong> todos os registros: movimentações, 
+            uniformes, vendas e congregações. Esta ação não pode ser desfeita.
+          </p> <button class="btn btn-danger" onclick="apagarTudo()"> Apagar Todos os Dados</button> </div> </div> </main> </div>
+</div> <script>
+requireAuth();
+loadData();
+
+function renderInfoSistema() {
+  const t = calculateTotals();
+  const dataStr = localStorage.getItem(STORAGE_KEY);
+  const tamanho = dataStr ? (new Blob([dataStr]).size / 1024).toFixed(1) : '0';
+  const savedPass = localStorage.getItem('ufads_pass') || '123456';
+
+  document.getElementById('info-sistema').innerHTML = [
+    { label: ' Administradora',        value: 'Rayssa' },
+    { label: ' Tamanho dos dados',     value: `${tamanho} KB no localStorage` },
+    { label: ' Movimentações',         value: appData.movements.length },
+    { label: ' Irmãs — Festividade',   value: appData.uniformFest.length },
+    { label: ' Irmãs — Pandeiro',      value: appData.uniformPandeiro.length },
+    { label: ' Registros de vendas',   value: appData.sales.length },
+    { label: ' Congregações',          value: appData.congregations.length },
+    { label: ' Saldo atual',           value: fmt(t.saldo) },
+    { label: ' Última atualização',    value: new Date().toLocaleString('pt-BR') },
+  ].map(i => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--neutral-100); font-size:.875rem;"> <span class="text-muted">${i.label}</span> <strong>${i.value}</strong> </div>
+  `).join('');
+}
+
+function previewBackup() {
+  const json = JSON.stringify(appData, null, 2);
+  document.getElementById('backup-preview').textContent = json.slice(0, 2000) + (json.length > 2000 ? '\n\n... (truncado para visualização)' : '');
+}
+
+function exportarBackup() {
+  const timestamp = new Date().toISOString().slice(0, 10);
+  const json  = JSON.stringify({ exportedAt: new Date().toISOString(), version: 'v2', ...appData }, null, 2);
+  const blob  = new Blob([json], { type: 'application/json' });
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href      = url;
+  a.download  = `tesouraria-ufads-backup-${timestamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup exportado com sucesso!');
+}
+
+function importarBackup() {
+  const file = document.getElementById('arquivo-backup').files[0];
+  if (!file) { showToast('Selecione um arquivo .json primeiro.', 'error'); return; }
+
+  if (!confirm(' ATENÇÃO!\n\nRestaurar o backup vai APAGAR todos os dados atuais.\nEsta ação NÃO pode ser desfeita.\n\nDeseja continuar?')) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      // Valida estrutura básica
+      if (!imported.movements || !imported.uniformFest) {
+        showToast('Arquivo inválido! Não é um backup desta tesouraria.', 'error'); return;
+      }
+      appData.movements       = imported.movements       || [];
+      appData.uniformFest     = imported.uniformFest     || [];
+      appData.uniformPandeiro = imported.uniformPandeiro || [];
+      appData.sales           = imported.sales           || [];
+      appData.congregations   = imported.congregations   || [];
+      saveData();
+      renderInfoSistema();
+      showToast('Backup restaurado com sucesso!');
+    } catch (err) {
+      showToast('Erro ao ler o arquivo. Verifique se é um JSON válido.', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function alterarSenha() {
+  const nova    = document.getElementById('nova-senha').value;
+  const confirma = document.getElementById('confirmar-senha').value;
+  if (!nova || nova.length < 4) { showToast('A senha deve ter pelo menos 4 caracteres.', 'error'); return; }
+  if (nova !== confirma) { showToast('As senhas não coincidem!', 'error'); return; }
+  localStorage.setItem('ufads_pass', nova);
+  document.getElementById('nova-senha').value = '';
+  document.getElementById('confirmar-senha').value = '';
+  showToast('Senha alterada com sucesso!');
+}
+
+function apagarTudo() {
+  const conf1 = confirm(' Você tem CERTEZA?\n\nTodos os dados serão APAGADOS permanentemente.\nEsta ação NÃO pode ser desfeita.');
+  if (!conf1) return;
+  const conf2 = prompt('Digite "APAGAR" para confirmar:');
+  if (conf2 !== 'APAGAR') { showToast('Operação cancelada.', 'warning'); return; }
+
+  appData.movements       = [];
+  appData.uniformFest     = [];
+  appData.uniformPandeiro = [];
+  appData.sales           = [];
+  appData.congregations   = ["Café Sem Troco", "Monte Sião", "Betel", "Ebenézer"];
+  saveData();
+  renderInfoSistema();
+  showToast('Todos os dados foram apagados.', 'warning');
+}
+
+renderInfoSistema();
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Dashboard — Tesouraria UFADS</title> <link rel="stylesheet" href="../css/style.css"> <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script> <style>
+    .lower-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .chart-wrap { position: relative; height: 220px; }
+    .fonte-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--neutral-100);
+      font-size: .875rem;
+    }
+    .fonte-row:last-child { border-bottom: none; }
+    .fonte-bar-wrap { display: flex; align-items: center; gap: 10px; flex: 1; margin: 0 14px; }
+    .fonte-bar { height: 6px; border-radius: 3px; min-width: 4px; transition: width .6s ease; }
+    .progress-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--neutral-100);
+      font-size: .875rem;
+    }
+    .progress-item:last-child { border-bottom: none; }
+    .progress-bar-outer {
+      flex: 1; height: 8px; background: var(--neutral-100); border-radius: 4px; overflow: hidden;
+    }
+    .progress-bar-inner { height: 100%; border-radius: 4px; transition: width .7s ease; }
+    .quick-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--neutral-200);
+      background: #fff;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .875rem;
+      font-weight: 500;
+      color: var(--neutral-700);
+      transition: all .18s;
+      text-align: left;
+      width: 100%;
+    }
+    .quick-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #f5f3ff;
+      transform: translateX(3px);
+    }
+    .quick-btn .q-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+    @media (max-width: 768px) {
+      .lower-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body> <script>const CURRENT_PAGE = 'dashboard';</script>
+<script src="../js/core.js"></script>
+<script src="../js/_layout.js"></script> <div class="app-wrapper"> <div class="main-content"> <header class="topbar"> <div style="display:flex; align-items:center; gap:12px;"> <button class="sidebar-toggle" onclick="toggleSidebar()"></button> <span class="topbar-title">Dashboard</span> </div> <div class="topbar-actions"> <span id="hoje" class="text-muted text-sm"></span> </div> </header> <main class="content-area"> <div class="page-title">Resumo Financeiro</div> <p class="page-subtitle">Visão geral da tesouraria — Departamento de Mulheres UFADS</p> <!-- KPI CARDS --> <div class="stat-grid" id="stat-grid"></div> <!-- LINHA 2 --> <div class="lower-grid"> <div class="card"> <div class="card-header"><h5> Composição das Entradas</h5></div> <div class="card-body"> <div class="chart-wrap"><canvas id="chart-pizza"></canvas></div> </div> </div> <div class="card"> <div class="card-header"><h5> Arrecadação por Fonte</h5></div> <div id="resumo-fonte"></div> </div> </div> <!-- LINHA 3 --> <div class="lower-grid"> <div class="card"> <div class="card-header"><h5> Progresso de Pagamentos</h5></div> <div class="card-body" id="status-pagamentos"></div> </div> <div class="card"> <div class="card-header"><h5> Ações Rápidas</h5></div> <div class="card-body" style="display:flex; flex-direction:column; gap:8px;"> <button class="quick-btn" onclick="location.href='caixa.html'">Nova Movimentação no Caixa</button> <button class="quick-btn" onclick="location.href='uniforme-fest.html'">Cadastrar Irmã — Festividade</button> <button class="quick-btn" onclick="location.href='uniforme-pandeiro.html'">Cadastrar Irmã — Pandeiro</button> <button class="quick-btn" onclick="location.href='vendas.html'">Registrar Nova Venda</button> <button class="quick-btn" onclick="location.href='relatorios.html'">Gerar Relatório</button> </div> </div> </div> <!-- Últimas movimentações --> <div class="card" style="margin-top:20px;"> <div class="card-header"> <h5> Últimas Movimentações do Caixa</h5> <button class="btn btn-sm btn-outline" onclick="location.href='caixa.html'">Ver tudo →</button> </div> <div class="table-wrapper" style="border:none; border-radius:0 0 var(--radius) var(--radius);"> <table id="tabela-recentes"> <thead> <tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Forma</th><th>Valor</th></tr> </thead> <tbody></tbody> </table> </div> </div> </main> </div>
+</div> <script>
+requireAuth();
+loadData();
+
+document.getElementById('hoje').textContent = new Date().toLocaleDateString('pt-BR', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+});
+
+let chartPizza = null;
+
+function renderDashboard() {
+  const t = calculateTotals();
+
+  /* KPI */
+  document.getElementById('stat-grid').innerHTML = [
+    { label: 'Saldo Total',          value: fmt(t.saldo),               icon: '', cls: t.saldo >= 0 ? 'primary' : 'danger' },
+    { label: 'Total Entradas',       value: fmt(t.totalEntradas),        icon: '',  cls: 'success' },
+    { label: 'Total Saídas',         value: fmt(t.totalSaidas),          icon: '',  cls: 'danger'  },
+    { label: 'Recebido via PIX',     value: fmt(t.totalPIX),             icon: '', cls: 'primary' },
+    { label: 'Recebido em Dinheiro', value: fmt(t.totalDinheiro),        icon: '', cls: 'warning' },
+    { label: 'Arrecadado em Vendas', value: fmt(t.totalVendas),          icon: '', cls: 'accent'  },
+    { label: 'Uniforme Festividade', value: fmt(t.totalUniformFest),     icon: '', cls: 'success' },
+    { label: 'Uniforme Pandeiro',    value: fmt(t.totalUniformPandeiro), icon: '', cls: 'warning' },
+  ].map(s => `
+    <div class="stat-card ${s.cls}"> <div class="stat-icon ${s.cls}">${s.icon}</div> <div class="stat-value">${s.value}</div> <div class="stat-label">${s.label}</div> </div>
+  `).join('');
+
+  /* Gráfico pizza */
+  const outrasEntradas = appData.movements
+    .filter(m => m.type === 'entrada').reduce((a, m) => a + +m.value, 0);
+  const pieData   = [t.totalUniformFest, t.totalUniformPandeiro, t.totalVendas, outrasEntradas];
+  const pieColors = ['#7c3aed','#f59e0b','#059669','#3b82f6'];
+  const pieLabels = ['Unif. Festividade','Unif. Pandeiro','Vendas','Outras Entradas'];
+
+  const ctx = document.getElementById('chart-pizza').getContext('2d');
+  if (chartPizza) chartPizza.destroy();
+  chartPizza = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: pieLabels,
+      datasets: [{ data: pieData, backgroundColor: pieColors, borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 14, font: { family: 'DM Sans', size: 11 }, color: '#52525b' } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } }
+      },
+      cutout: '60%'
+    }
+  });
+
+  /* Arrecadação por fonte */
+  const fontes = [
+    { label: 'Unif. Festividade', val: t.totalUniformFest,     icon: '', color: '#7c3aed' },
+    { label: 'Unif. Pandeiro',    val: t.totalUniformPandeiro, icon: '', color: '#f59e0b' },
+    { label: 'Vendas',            val: t.totalVendas,           icon: '', color: '#059669' },
+    { label: 'Outras Entradas',   val: outrasEntradas,          icon: '', color: '#3b82f6' },
+  ];
+  const maxF = Math.max(...fontes.map(f => f.val), 1);
+  document.getElementById('resumo-fonte').innerHTML = fontes.map(f => `
+    <div class="fonte-row"> <span style="display:flex;align-items:center;gap:6px;min-width:140px;font-size:.8rem">${f.icon} ${f.label}</span> <div class="fonte-bar-wrap"> <div class="fonte-bar" style="width:${Math.max((f.val/maxF)*100,2)}%; background:${f.color}"></div> </div> <span style="font-weight:600;color:${f.color};min-width:85px;text-align:right;font-size:.82rem">${fmt(f.val)}</span> </div>
+  `).join('');
+
+  /* Progresso de pagamentos */
+  const total    = t.mulheresCadastradas || 1;
+  const integ    = total - t.naopagas - t.parciais;
+  const pctI     = Math.round((integ / total) * 100);
+  const pctP     = Math.round((t.parciais / total) * 100);
+  const pctN     = Math.round((t.naopagas / total) * 100);
+
+  document.getElementById('status-pagamentos').innerHTML = `
+    <div style="margin-bottom:18px;"> <div style="display:flex;justify-content:space-between;margin-bottom:7px;"> <span class="text-sm text-muted">Total de irmãs cadastradas</span> <strong>${t.mulheresCadastradas}</strong> </div> <div style="height:10px;background:var(--neutral-100);border-radius:5px;overflow:hidden;display:flex;"> <div style="width:${pctI}%;background:var(--success);transition:width .8s;"></div> <div style="width:${pctP}%;background:var(--warning);transition:width .8s;"></div> <div style="width:${pctN}%;background:var(--danger);transition:width .8s;"></div> </div> <div style="display:flex;gap:14px;margin-top:8px;font-size:.72rem;flex-wrap:wrap;"> <span style="color:var(--success)"> Integral (${integ})</span> <span style="color:var(--warning)"> Parcial (${t.parciais})</span> <span style="color:var(--danger)"> Não pago (${t.naopagas})</span> </div> </div>
+    ${[
+      { label:' Pago integral',     count:integ,       cls:'success', pct:pctI },
+      { label:' Pagamento parcial',  count:t.parciais,  cls:'warning', pct:pctP },
+      { label:' Não pago',           count:t.naopagas,  cls:'danger',  pct:pctN },
+    ].map(item => `
+      <div class="progress-item"> <span style="min-width:160px;font-size:.82rem">${item.label}</span> <div class="progress-bar-outer"> <div class="progress-bar-inner" style="width:${item.pct}%;background:var(--${item.cls})"></div> </div> <span style="min-width:28px;text-align:right;font-weight:700;color:var(--${item.cls})">${item.count}</span> </div>
+    `).join('')}
+  `;
+
+  /* Últimas movimentações */
+  const recentes = [...appData.movements]
+    .sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+  const tbody = document.querySelector('#tabela-recentes tbody');
+  if (!recentes.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><p>Nenhuma movimentação ainda.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = recentes.map(m => `
+    <tr> <td>${fmtDate(m.date)}</td> <td>${m.description}${m.obs ? `<br><span class="text-muted text-sm">${m.obs}</span>` : ''}</td> <td><span class="badge badge-${m.type==='entrada'?'success':'danger'}">${m.type}</span></td> <td><span class="badge badge-neutral">${m.form}</span></td> <td style="font-weight:600;color:${m.type==='entrada'?'var(--success)':'var(--danger)'}">
+        ${m.type==='saida'?'−':'+'}${fmt(m.value)}
+      </td> </tr>
+  `).join('');
+}
+
+renderDashboard();
+</script>
+</body>
+</html>

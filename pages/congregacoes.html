@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Congregações — Tesouraria UFADS</title> <link rel="stylesheet" href="../css/style.css">
+</head>
+<body> <script>const CURRENT_PAGE = 'congregacoes';</script>
+<script src="../js/core.js"></script>
+<script src="../js/_layout.js"></script> <div class="app-wrapper"> <div class="main-content"> <header class="topbar"> <div style="display:flex; align-items:center; gap:12px;"> <button class="sidebar-toggle" onclick="toggleSidebar()"></button> <span class="topbar-title">Congregações</span> </div> </header> <main class="content-area"> <div class="page-title">Congregações</div> <p class="page-subtitle">Gerencie as congregações do departamento</p> <!-- Adicionar nova --> <div class="card" style="max-width:480px; margin-bottom:24px;"> <div class="card-header"><h5> Nova Congregação</h5></div> <div class="card-body"> <div style="display:flex; gap:10px;"> <input type="text" id="nova-congregacao" class="form-control" placeholder="Nome da congregação..." 
+                   onkeydown="if(event.key==='Enter') adicionarCongregacao()"> <button class="btn btn-primary" onclick="adicionarCongregacao()" style="white-space:nowrap;">Adicionar</button> </div> </div> </div> <!-- Lista --> <div class="card" style="max-width:600px;"> <div class="card-header"> <h5> Congregações Cadastradas</h5> <span id="count-cong" class="badge badge-primary"></span> </div> <div id="lista-congregacoes"> <!-- preenchido via JS --> </div> </div> </main> </div>
+</div> <script>
+requireAuth();
+loadData();
+
+function renderCongregacoes() {
+  const container = document.getElementById('lista-congregacoes');
+  document.getElementById('count-cong').textContent = appData.congregations.length + ' cadastradas';
+
+  if (appData.congregations.length === 0) {
+    container.innerHTML = `<div class="empty-state"><p>Nenhuma congregação cadastrada.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = appData.congregations.map((c, i) => `
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--neutral-100);"> <div style="display:flex; align-items:center; gap:12px;"> <div style="width:36px; height:36px; border-radius:10px; background:var(--neutral-100); display:flex; align-items:center; justify-content:center; font-size:1rem;"></div> <span style="font-weight:500;">${c}</span> </div> <button class="btn btn-sm btn-danger" onclick="excluirCongregacao(${i})" title="Excluir"> Excluir</button> </div>
+  `).join('');
+}
+
+function adicionarCongregacao() {
+  const nome = document.getElementById('nova-congregacao').value.trim();
+  if (!nome) { showToast('Digite o nome da congregação.', 'error'); return; }
+  if (appData.congregations.includes(nome)) { showToast('Congregação já cadastrada!', 'warning'); return; }
+
+  appData.congregations.push(nome);
+  saveData();
+  renderCongregacoes();
+  document.getElementById('nova-congregacao').value = '';
+  showToast('Congregação adicionada!');
+}
+
+function excluirCongregacao(index) {
+  const nome = appData.congregations[index];
+  if (!confirm(`Excluir "${nome}"?\n(Irmãs já cadastradas não serão removidas.)`)) return;
+  appData.congregations.splice(index, 1);
+  saveData();
+  renderCongregacoes();
+  showToast('Congregação removida.', 'warning');
+}
+
+renderCongregacoes();
+</script>
+</body>
+</html>

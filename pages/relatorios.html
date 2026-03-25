@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Relatórios — Tesouraria UFADS</title> <link rel="stylesheet" href="../css/style.css"> <style>
+    .report-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 24px 16px;
+      background: #fff;
+      border: 1.5px solid var(--neutral-200);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all .2s;
+      font-family: 'DM Sans', sans-serif;
+      text-align: center;
+    }
+    .report-btn:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 16px rgba(124,58,237,.15);
+      transform: translateY(-2px);
+    }
+    .report-btn.active {
+      border-color: var(--primary);
+      background: #f5f3ff;
+    }
+    .report-btn .btn-label { font-size: .875rem; font-weight: 600; color: var(--neutral-700); }
+    .report-btn .btn-sub { font-size: .75rem; color: var(--neutral-500); }
+
+    #report-output {
+      background: #fff;
+      border: 1px solid var(--neutral-200);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-top: 24px;
+      display: none;
+    }
+    #report-output.show { display: block; }
+    #report-output h3 { font-family: 'DM Serif Display', serif; margin-bottom: 20px; font-size: 1.4rem; }
+
+    .report-section { margin-bottom: 28px; }
+    .report-kpi-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .report-kpi {
+      background: var(--neutral-50);
+      border: 1px solid var(--neutral-200);
+      border-radius: var(--radius-sm);
+      padding: 14px 20px;
+      min-width: 150px;
+    }
+    .report-kpi .kpi-value { font-size: 1.3rem; font-weight: 700; color: var(--neutral-900); }
+    .report-kpi .kpi-label { font-size: .76rem; color: var(--neutral-500); margin-top: 2px; }
+
+    .print-btn {
+      float: right;
+      margin-top: -8px;
+    }
+
+    @media print {
+      .sidebar, .topbar, .report-btn-grid, .print-btn, header { display: none !important; }
+      .main-content { margin-left: 0 !important; }
+      #report-output { display: block !important; border: none; }
+    }
+  </style>
+</head>
+<body> <script>const CURRENT_PAGE = 'relatorios';</script>
+<script src="../js/core.js"></script>
+<script src="../js/_layout.js"></script> <div class="app-wrapper"> <div class="main-content"> <header class="topbar"> <div style="display:flex; align-items:center; gap:12px;"> <button class="sidebar-toggle" onclick="toggleSidebar()"></button> <span class="topbar-title">Relatórios</span> </div> <div class="topbar-actions"> <button class="btn btn-outline btn-sm" id="btn-csv" onclick="exportarCSV()" style="display:none"> Exportar CSV</button> <button class="btn btn-outline btn-sm" onclick="window.print()"> Imprimir</button> </div> </header> <main class="content-area"> <div class="page-title"> Relatórios</div> <p class="page-subtitle">Gere e visualize relatórios financeiros do departamento</p> <!-- Botões de relatório --> <div class="report-btn-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px; margin-bottom:8px;"> <button class="report-btn" id="btn-geral" onclick="gerarRelatorio('geral')"> <span class="btn-label">Geral do Caixa</span> <span class="btn-sub">Entradas e saídas</span> </button> <button class="report-btn" id="btn-fest" onclick="gerarRelatorio('fest')"> <span class="btn-label">Uniforme Festividade</span> <span class="btn-sub">Status por irmã</span> </button> <button class="report-btn" id="btn-pandeiro" onclick="gerarRelatorio('pandeiro')"> <span class="btn-label">Uniforme Pandeiro</span> <span class="btn-sub">Status por irmã</span> </button> <button class="report-btn" id="btn-vendas" onclick="gerarRelatorio('vendas')"> <span class="btn-label">Vendas</span> <span class="btn-sub">Produtos vendidos</span> </button> <button class="report-btn" id="btn-saidas" onclick="gerarRelatorio('saidas')"> <span class="btn-label">Saídas</span> <span class="btn-sub">Com justificativas</span> </button> <button class="report-btn" id="btn-completo" onclick="gerarRelatorio('completo')"> <span class="btn-label">Relatório Completo</span> <span class="btn-sub">Todos os módulos</span> </button> </div> <!-- Área do relatório --> <div id="report-output"></div> </main> </div>
+</div> <script>
+requireAuth();
+loadData();
+
+let reportAtual = null;
+
+function gerarRelatorio(tipo) {
+  // Highlight botão ativo
+  document.querySelectorAll('.report-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btn-' + tipo);
+  if (btn) btn.classList.add('active');
+
+  reportAtual = tipo;
+  const out = document.getElementById('report-output');
+  out.classList.add('show');
+
+  const geradoEm = new Date().toLocaleDateString('pt-BR', { dateStyle: 'long' });
+
+  let html = '';
+
+  if (tipo === 'geral' || tipo === 'completo') {
+    const t = calculateTotals();
+    html += `
+      <div class="report-section"> <h3> Resumo Geral do Caixa</h3> <div class="report-kpi-row"> <div class="report-kpi"><div class="kpi-value" style="color:var(--primary)">${fmt(t.saldo)}</div><div class="kpi-label">Saldo Final</div></div> <div class="report-kpi"><div class="kpi-value" style="color:var(--success)">${fmt(t.totalEntradas)}</div><div class="kpi-label">Total Entradas</div></div> <div class="report-kpi"><div class="kpi-value" style="color:var(--danger)">${fmt(t.totalSaidas)}</div><div class="kpi-label">Total Saídas</div></div> <div class="report-kpi"><div class="kpi-value">${fmt(t.totalPIX)}</div><div class="kpi-label">Total PIX</div></div> <div class="report-kpi"><div class="kpi-value">${fmt(t.totalDinheiro)}</div><div class="kpi-label">Total Dinheiro</div></div> </div>
+        ${tipo === 'geral' ? renderTabelaMovimentos(appData.movements) : ''}
+      </div>
+    `;
+  }
+
+  if (tipo === 'saidas' || tipo === 'completo') {
+    const saidas = appData.movements.filter(m => m.type === 'saida');
+    const totalSaidas = saidas.reduce((a, m) => a + +m.value, 0);
+    html += `
+      <div class="report-section"> <h3> Relatório de Saídas</h3> <p style="margin-bottom:14px;color:var(--neutral-600);">Total de saídas: <strong>${fmt(totalSaidas)}</strong></p>
+        ${saidas.length === 0 ? '<p class="text-muted">Nenhuma saída registrada.</p>' : `
+        <div class="table-wrapper"> <table> <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Justificativa</th></tr></thead> <tbody>
+              ${saidas.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(m => `
+                <tr> <td>${fmtDate(m.date)}</td> <td>${m.description}</td> <td><span class="badge badge-neutral">${m.category}</span></td> <td style="color:var(--danger);font-weight:600">−${fmt(m.value)}</td> <td style="font-style:italic;color:var(--neutral-600)">${m.justification || '—'}</td> </tr>
+              `).join('')}
+            </tbody> </table> </div>`}
+      </div>
+    `;
+  }
+
+  if (tipo === 'fest' || tipo === 'completo') {
+    html += renderRelatorioUniforme('fest');
+  }
+
+  if (tipo === 'pandeiro' || tipo === 'completo') {
+    html += renderRelatorioUniforme('pandeiro');
+  }
+
+  if (tipo === 'vendas' || tipo === 'completo') {
+    const totalV = appData.sales.reduce((a, s) => a + +s.total, 0);
+    const porProduto = {};
+    appData.sales.forEach(s => {
+      if (!porProduto[s.product]) porProduto[s.product] = { qty: 0, total: 0 };
+      porProduto[s.product].qty   += +s.qty;
+      porProduto[s.product].total += +s.total;
+    });
+
+    html += `
+      <div class="report-section"> <h3> Relatório de Vendas</h3> <div class="report-kpi-row"> <div class="report-kpi"><div class="kpi-value" style="color:var(--success)">${fmt(totalV)}</div><div class="kpi-label">Total Arrecadado</div></div> <div class="report-kpi"><div class="kpi-value">${appData.sales.length}</div><div class="kpi-label">Registros</div></div> </div>
+        ${appData.sales.length === 0 ? '<p class="text-muted">Nenhuma venda registrada.</p>' : `
+        <div class="table-wrapper" style="margin-bottom:16px;"> <table> <thead><tr><th>Produto</th><th>Qtd Total</th><th>Total Arrecadado</th></tr></thead> <tbody>
+              ${Object.entries(porProduto).map(([p, v]) => `
+                <tr> <td><span class="badge badge-primary">${p}</span></td> <td>${v.qty}</td> <td style="font-weight:600;color:var(--success)">${fmt(v.total)}</td> </tr>
+              `).join('')}
+            </tbody> </table> </div> <div class="table-wrapper"> <table> <thead><tr><th>Data</th><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th><th>Forma</th></tr></thead> <tbody>
+              ${appData.sales.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(s => `
+                <tr> <td>${fmtDate(s.date)}</td> <td>${s.product}</td> <td>${s.qty}</td> <td>${fmt(s.unitValue)}</td> <td style="font-weight:600;color:var(--success)">${fmt(s.total)}</td> <td>${s.form}</td> </tr>
+              `).join('')}
+            </tbody> </table> </div>`}
+      </div>
+    `;
+  }
+
+  html += `<div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--neutral-200); color:var(--neutral-400); font-size:.78rem; text-align:right;">
+    Relatório gerado em ${geradoEm} — Tesouraria UFADS
+  </div>`;
+
+  out.innerHTML = html;
+}
+
+function renderRelatorioUniforme(tipo) {
+  const lista = tipo === 'fest' ? appData.uniformFest : appData.uniformPandeiro;
+  const label = tipo === 'fest' ? ' Uniforme Festividade' : ' Uniforme Pandeiro';
+
+  let totalPago = 0, totalPend = 0;
+  lista.forEach(u => {
+    const pago = (+u.pixPaid||0) + (+u.moneyPaid||0);
+    totalPago += pago;
+    totalPend += (+u.totalValue||0) - pago;
+  });
+
+  // Agrupar por congregação
+  const grupos = {};
+  lista.forEach(u => {
+    if (!grupos[u.congregation]) grupos[u.congregation] = [];
+    grupos[u.congregation].push(u);
+  });
+
+  return `
+    <div class="report-section"> <h3>${label}</h3> <div class="report-kpi-row"> <div class="report-kpi"><div class="kpi-value" style="color:var(--success)">${fmt(totalPago)}</div><div class="kpi-label">Total Pago</div></div> <div class="report-kpi"><div class="kpi-value" style="color:var(--danger)">${fmt(totalPend)}</div><div class="kpi-label">Total Pendente</div></div> <div class="report-kpi"><div class="kpi-value">${lista.length}</div><div class="kpi-label">Irmãs</div></div> </div>
+      ${lista.length === 0 ? '<p class="text-muted">Nenhum registro.</p>' : `
+      <div class="table-wrapper"> <table> <thead><tr><th>Congregação</th><th>Irmã</th><th>Total</th><th>PIX</th><th>Dinheiro</th><th>Pago</th><th>Pendente</th><th>Status</th></tr></thead> <tbody>
+            ${lista.sort((a,b)=>a.congregation.localeCompare(b.congregation)).map(u => {
+              const pago = (+u.pixPaid||0) + (+u.moneyPaid||0);
+              const pend = (+u.totalValue||0) - pago;
+              const st = paymentStatus(u);
+              return `
+                <tr> <td>${u.congregation}</td> <td>${u.woman}</td> <td>${fmt(u.totalValue)}</td> <td>${fmt(u.pixPaid)}</td> <td>${fmt(u.moneyPaid)}</td> <td style="font-weight:600;color:var(--success)">${fmt(pago)}</td> <td style="color:${pend>0?'var(--danger)':'var(--success)'}">${fmt(pend)}</td> <td><span class="badge badge-${st.cls}">${st.label}</span></td> </tr>
+              `;
+            }).join('')}
+          </tbody> </table> </div>`}
+    </div>
+  `;
+}
+
+function renderTabelaMovimentos(movs) {
+  if (movs.length === 0) return '<p class="text-muted">Nenhuma movimentação no caixa.</p>';
+  return `
+    <div class="table-wrapper"> <table> <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th>Valor</th></tr></thead> <tbody>
+          ${movs.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(m => `
+            <tr> <td>${fmtDate(m.date)}</td> <td><span class="badge badge-${m.type==='entrada'?'success':'danger'}">${m.type}</span></td> <td>${m.description}</td> <td><span class="badge badge-neutral">${m.category}</span></td> <td>${m.form}</td> <td style="font-weight:600;color:${m.type==='entrada'?'var(--success)':'var(--danger)'}">
+                ${m.type==='saida'?'−':'+'}${fmt(m.value)}
+              </td> </tr>
+          `).join('')}
+        </tbody> </table> </div>
+  `;
+}
+
+/* ---- Após gerar relatório, mostra botão CSV ---- */
+const _gerarOrig = gerarRelatorio;
+window.gerarRelatorio = function(tipo) {
+  _gerarOrig(tipo);
+  document.getElementById('btn-csv').style.display = 'inline-flex';
+};
+
+function exportarCSV() {
+  if (!reportAtual) return;
+  let rows = [], filename = 'relatorio';
+
+  if (reportAtual === 'geral' || reportAtual === 'completo') {
+    filename = 'caixa';
+    rows.push(['Data','Tipo','Descrição','Categoria','Forma','Valor']);
+    appData.movements.forEach(m => rows.push([m.date, m.type, m.description, m.category, m.form, m.value]));
+  } else if (reportAtual === 'saidas') {
+    filename = 'saidas';
+    rows.push(['Data','Descrição','Categoria','Valor','Justificativa']);
+    appData.movements.filter(m=>m.type==='saida').forEach(m => rows.push([m.date, m.description, m.category, m.value, m.justification]));
+  } else if (reportAtual === 'fest' || reportAtual === 'pandeiro') {
+    filename = 'uniforme-' + reportAtual;
+    rows.push(['Congregação','Nome','Telefone','Total','PIX Pago','Dinheiro Pago','Total Pago','Pendente','Status']);
+    const lista = reportAtual === 'fest' ? appData.uniformFest : appData.uniformPandeiro;
+    lista.forEach(u => {
+      const pago = (+u.pixPaid||0)+(+u.moneyPaid||0);
+      const st   = paymentStatus(u);
+      rows.push([u.congregation, u.woman, u.phone||'', u.totalValue, u.pixPaid, u.moneyPaid, pago, u.totalValue-pago, st.label]);
+    });
+  } else if (reportAtual === 'vendas') {
+    filename = 'vendas';
+    rows.push(['Data','Produto','Qtd','Unitário','Total','Forma']);
+    appData.sales.forEach(s => rows.push([s.date, s.product, s.qty, s.unitValue, s.total, s.form]));
+  }
+
+  const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const bom  = '\uFEFF'; // BOM para compatibilidade com Excel
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${filename}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV exportado!');
+}
+</script>
+</body>
+</html>
